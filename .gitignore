@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables
+.env
+.env.local
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# IDEs
+.vscode/
+.idea/
+
+# Project Specific
+index.bin
+index.pkl
+temp_media.*
+*.log
+*.tmp
+
+# Mac
+.DS_Store

@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+psycopg2-binary
+sqlalchemy
+web3
+python-dotenv
+imagehash
+Pillow
+opencv-python
+ffmpeg-python
+hnswlib
+pydantic
+requests
+aiogram>=3.0.0
+python-multipart
+yt-dlp
