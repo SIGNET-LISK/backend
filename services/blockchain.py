@@ -53,3 +53,17 @@ class SignetContract:
 
     def get_content(self, p_hash: str):
         return self.contract.functions.getContentData(p_hash).call()
+    
+    def is_publisher_authorized(self, address: str) -> bool:
+        """Check if an address is authorized as publisher"""
+        try:
+            return self.contract.functions.authorizedPublishers(address).call()
+        except Exception as e:
+            return False
+    
+    def get_owner(self) -> str:
+        """Get contract owner address"""
+        try:
+            return self.contract.functions.owner().call()
+        except Exception as e:
+            return ""

@@ -12,23 +12,38 @@ contract = SignetContract()
 async def register_content(
     file: UploadFile = File(...),
     title: str = Form(...),
-    description: str = Form(...)
+    description: str = Form(...),
+    publisher_address: str = Form(None)  # Address dari wallet yang connect di frontend
 ):
     temp_dir = tempfile.mkdtemp()
-    temp_path = os.path.join(temp_dir, file.filename)
+    temp_path = os.path.join(temp_dir, file.filename or "uploaded_file")
     
     try:
+        # Validate publisher if address provided
+        if publisher_address:
+            # Normalize address (lowercase, checksum)
+            from web3 import Web3
+            publisher_address = Web3.to_checksum_address(publisher_address)
+            
+            # Check if address is authorized publisher
+            is_authorized = contract.is_publisher_authorized(publisher_address)
+            if not is_authorized:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Address {publisher_address} is not authorized as publisher. Please contact admin to add you as publisher."
+                )
+        
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
         # Generate pHash
-        if file.content_type.startswith("video") or file.filename.endswith((".mp4", ".mov", ".avi")):
+        if file.content_type and file.content_type.startswith("video") or (file.filename and file.filename.endswith((".mp4", ".mov", ".avi"))):
             p_hash = get_video_phash(temp_path)
         else:
             with open(temp_path, "rb") as f:
                 p_hash = get_image_phash(f.read())
                 
-        # Register on Blockchain
+        # Register on Blockchain (using relayer wallet from .env)
         tx_hash = contract.register_content(p_hash, title, description)
         
         return {
