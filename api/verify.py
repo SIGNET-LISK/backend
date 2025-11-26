@@ -6,6 +6,8 @@ from models.content import Content
 import shutil
 import os
 import tempfile
+import yt_dlp
+import requests
 
 router = APIRouter()
 verifier = get_verifier()
@@ -22,18 +24,58 @@ async def verify_content(
     p_hash = None
     
     try:
+        temp_path = ""
+        
         if file:
             temp_path = os.path.join(temp_dir, file.filename)
             with open(temp_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
-            
-            if file.content_type.startswith("video") or file.filename.endswith((".mp4", ".mov", ".avi")):
-                p_hash = get_video_phash(temp_path)
-            else:
-                with open(temp_path, "rb") as f:
-                    p_hash = get_image_phash(f.read())
         
-        # TODO: Implement Link handling (yt-dlp) if needed here, similar to bot
+        elif link:
+            # Logic adapted from Telegram Bot
+            try:
+                # Try yt-dlp first
+                ydl_opts = {
+                    'format': 'best',
+                    'quiet': True,
+                    'outtmpl': os.path.join(temp_dir, 'temp_media.%(ext)s'),
+                    'max_filesize': 50 * 1024 * 1024 # Limit 50MB
+                }
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(link, download=True)
+                    temp_path = ydl.prepare_filename(info)
+                    
+            except Exception as e:
+                # Fallback to direct download
+                try:
+                    response = requests.get(link, stream=True)
+                    response.raise_for_status()
+                    content_type = response.headers.get('Content-Type', '')
+                    
+                    ext = ""
+                    if 'image' in content_type: ext = ".jpg"
+                    elif 'video' in content_type: ext = ".mp4"
+                    else: ext = ".bin" # Try to detect later or fail
+                    
+                    temp_path = os.path.join(temp_dir, f"url_content{ext}")
+                    
+                    with open(temp_path, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                            
+                except Exception as direct_e:
+                    raise HTTPException(status_code=400, detail=f"Failed to process link: {str(e)} | Direct: {str(direct_e)}")
+
+        if not os.path.exists(temp_path):
+             raise HTTPException(status_code=400, detail="Could not retrieve file from input")
+
+        # Generate pHash
+        if temp_path.endswith((".mp4", ".mov", ".avi", ".webm", ".mkv")) or "video" in str(file.content_type if file else ""):
+             p_hash = get_video_phash(temp_path)
+        else:
+            with open(temp_path, "rb") as f:
+                p_hash = get_image_phash(f.read())
         
         if not p_hash:
              raise HTTPException(status_code=400, detail="Could not generate hash")
@@ -77,7 +119,13 @@ async def verify_content(
             "message": "Content is authentic." if is_verified else "Content is different."
         }
 
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        shutil.rmtree(temp_dir)
+        if os.path.exists(temp_dir):
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass

@@ -1,12 +1,29 @@
 # Panduan Penggunaan API SIGNET (Postman)
 
-Berikut adalah panduan lengkap untuk mengetes endpoint API menggunakan Postman.
+Berikut adalah panduan lengkap untuk berinteraksi dengan SIGNET Backend API.
 
 **Base URL**: `http://localhost:8000`
 
 ---
 
-## 1. Register Content (Daftarkan Konten)
+## Daftar Endpoint
+
+### 1. Health Check
+Mengecek status server backend.
+
+- **Method**: `GET`
+- **Endpoint**: `/`
+
+**Response Sukses (200 OK):**
+```json
+{
+    "message": "SIGNET Backend is running"
+}
+```
+
+---
+
+### 2. Register Content (Daftarkan Konten)
 Mendaftarkan konten baru ke blockchain Lisk dan menyimpannya ke database indexer.
 
 - **Method**: `POST`
@@ -14,13 +31,13 @@ Mendaftarkan konten baru ke blockchain Lisk dan menyimpannya ke database indexer
 - **Body Type**: `form-data`
 
 **Parameter Body:**
-| Key | Type | Value | Deskripsi |
+| Key | Type | Required | Deskripsi |
 | :--- | :--- | :--- | :--- |
-| `file` | File | (Pilih file gambar/video) | File asli yang akan didaftarkan |
-| `title` | Text | "Judul Karya" | Judul konten |
-| `description` | Text | "Deskripsi konten..." | Penjelasan singkat |
+| `file` | File | Yes | File gambar atau video yang akan didaftarkan. |
+| `title` | Text | Yes | Judul karya. |
+| `description` | Text | Yes | Deskripsi singkat mengenai konten. |
 
-**Contoh Response Sukses (200 OK):**
+**Response Sukses (200 OK):**
 ```json
 {
     "status": "SUCCESS",
@@ -30,22 +47,33 @@ Mendaftarkan konten baru ke blockchain Lisk dan menyimpannya ke database indexer
 }
 ```
 
+**Error Response (500 Internal Server Error):**
+Jika terjadi kesalahan saat upload atau interaksi blockchain.
+```json
+{
+    "detail": "Error message description..."
+}
+```
+
 ---
 
-## 2. Verify Content (Verifikasi Konten)
-Mengecek apakah sebuah file sudah terdaftar dan asli.
+### 3. Verify Content (Verifikasi Konten)
+Mengecek keaslian konten dengan membandingkan perceptual hash (pHash) dengan database yang ada.
 
 - **Method**: `POST`
 - **Endpoint**: `/api/verify`
 - **Body Type**: `form-data`
 
 **Parameter Body:**
-| Key | Type | Value | Deskripsi |
+| Key | Type | Required | Deskripsi |
 | :--- | :--- | :--- | :--- |
-| `file` | File | (Pilih file) | File yang ingin dicek |
-| `link` | Text | (Kosongkan jika upload file) | Opsional: Link video (belum aktif penuh) |
+| `file` | File | Optional* | File yang ingin dicek keasliannya. |
+| `link` | Text | Optional* | Link video/gambar (YouTube, TikTok, Instagram, Direct URL). |
 
-**Contoh Response: VERIFIED (Asli)**
+*\*Salah satu dari `file` atau `link` harus ada.*
+
+**Response: VERIFIED (Asli)**
+Konten ditemukan dan memiliki kemiripan di bawah ambang batas (Hamming Distance <= Threshold).
 ```json
 {
     "status": "VERIFIED",
@@ -60,7 +88,8 @@ Mengecek apakah sebuah file sudah terdaftar dan asli.
 }
 ```
 
-**Contoh Response: UNVERIFIED (Palsu/Belum Terdaftar)**
+**Response: UNVERIFIED (Palsu/Belum Terdaftar)**
+Konten tidak ditemukan atau perbedaannya terlalu jauh.
 ```json
 {
     "status": "UNVERIFIED",
@@ -68,28 +97,53 @@ Mengecek apakah sebuah file sudah terdaftar dan asli.
     "message": "No matching content found."
 }
 ```
+*Atau jika ditemukan tapi jaraknya terlalu jauh:*
+```json
+{
+    "status": "UNVERIFIED",
+    "pHash_input": "...",
+    "pHash_match": "...",
+    "hamming_distance": 35,
+    ...
+    "message": "Content is different."
+}
+```
 
 ---
 
-## 3. Get All Contents (Lihat Daftar)
+### 4. Get All Contents (Lihat Daftar)
 Melihat daftar konten yang sudah terindex di database lokal.
 
 - **Method**: `GET`
 - **Endpoint**: `/api/contents`
 
-**Contoh Response:**
+**Response Sukses (200 OK):**
+Mengembalikan array objek konten. Perhatikan penulisan key (huruf kecil) sesuai dengan database model.
+
 ```json
 [
     {
         "id": 1,
-        "pHash": "a1b2c3d4e5f67890",
+        "phash": "a1b2c3d4e5f67890",
         "publisher": "0xPublisherAddress...",
         "title": "Judul Karya",
         "description": "Deskripsi konten...",
         "timestamp": 1700000000,
-        "txHash": "0x123456789abcdef...",
-        "blockNumber": 1005,
+        "txhash": "0x123456789abcdef...",
+        "blocknumber": 1005,
         "created_at": "2024-01-01T12:00:00"
     }
 ]
 ```
+
+---
+
+## Catatan Tambahan
+
+### Telegram Bot
+Selain API ini, tersedia juga **Telegram Bot** yang memiliki fitur lebih lengkap.
+Bot menggunakan endpoint `/api/verify` di balik layar untuk pemrosesan file.
+
+### Konfigurasi Environment
+Beberapa perilaku API dipengaruhi oleh file `.env`:
+- `HAMMING_THRESHOLD`: Ambang batas toleransi perbedaan gambar (Default: 25). Semakin kecil nilainya, semakin ketat verifikasinya.
