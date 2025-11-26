@@ -49,10 +49,51 @@ class SignetContract:
         signed_tx = self.w3.eth.account.sign_transaction(tx, PRIVATE_KEY)
         tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
         
+        # Wait for transaction receipt and check for revert
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        
+        # Check if transaction reverted
+        if receipt['status'] == 0:
+            # Transaction reverted, try to get revert reason by simulating the call
+            try:
+                # Simulate the call to get the revert reason
+                self.contract.functions.registerContent(
+                    p_hash,
+                    title,
+                    description
+                ).call({'from': account.address})
+                # If call succeeds, this shouldn't happen, but provide generic error
+                raise ValueError("Transaction reverted for unknown reason")
+            except Exception as e:
+                error_msg = str(e)
+                # Extract meaningful error message from the exception
+                if "Hash already registered" in error_msg or "SIGNET: Hash already registered" in error_msg:
+                    raise ValueError("SIGNET: Hash already registered. This content has already been registered on the blockchain.")
+                elif "Not an authorized publisher" in error_msg or "SIGNET: Not an authorized publisher" in error_msg:
+                    raise ValueError("SIGNET: Not an authorized publisher.")
+                elif "Content not found" in error_msg:
+                    # This shouldn't happen during registration, but handle it
+                    raise ValueError("SIGNET: Content not found.")
+                else:
+                    # Generic revert error - could be duplicate or other issue
+                    raise ValueError(f"Transaction reverted: {error_msg}")
+        
         return self.w3.to_hex(tx_hash)
 
     def get_content(self, p_hash: str):
         return self.contract.functions.getContentData(p_hash).call()
+    
+    def content_exists(self, p_hash: str) -> bool:
+        """Check if content with given hash already exists in the registry"""
+        try:
+            # Try to get content data - if it succeeds, content exists
+            # getContentData will revert if content not found, so we catch that
+            publisher, _, _, _ = self.contract.functions.getContentData(p_hash).call()
+            # If we get here, content exists (publisher is not zero address)
+            return publisher != "0x0000000000000000000000000000000000000000"
+        except Exception:
+            # If call fails (content not found), content doesn't exist
+            return False
     
     def is_publisher_authorized(self, address: str) -> bool:
         """Check if an address is authorized as publisher"""

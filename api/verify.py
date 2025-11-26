@@ -114,7 +114,10 @@ async def verify_content(
             "hamming_distance": int(distance),
             "publisher": content.publisher,
             "title": content.title,
+            "description": content.description,
+            "timestamp": content.timestamp,
             "txHash": content.txhash,
+            "blocknumber": content.blocknumber,
             "explorer_link": f"https://sepolia-blockscout.lisk.com/tx/{content.txhash if content.txhash.startswith('0x') else '0x' + content.txhash}",
             "message": "Content is authentic." if is_verified else "Content is different."
         }
