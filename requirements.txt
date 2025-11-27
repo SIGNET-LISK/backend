@@ -4,6 +4,7 @@ psycopg2-binary
 sqlalchemy
 web3
 python-dotenv
+eth-account>=0.9.0
 imagehash
 Pillow
 opencv-python

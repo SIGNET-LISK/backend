@@ -1,6 +1,12 @@
 [
     {
-        "inputs": [],
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_trustedForwarder",
+                "type": "address"
+            }
+        ],
         "stateMutability": "nonpayable",
         "type": "constructor"
     },
@@ -228,6 +234,25 @@
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "forwarder",
+                "type": "address"
+            }
+        ],
+        "name": "isTrustedForwarder",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "owner",
         "outputs": [
@@ -281,6 +306,19 @@
         "name": "transferOwnership",
         "outputs": [],
         "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "trustedForwarder",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     }
 ]

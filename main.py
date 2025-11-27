@@ -2,7 +2,7 @@ import os
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import register, verify, contents
+from api import register, verify, contents, signature, admin
 from indexer.db import engine
 from models.content import Base
 
@@ -22,10 +22,12 @@ app.add_middleware(
 app.include_router(register.router, prefix="/api", tags=["Register"])
 app.include_router(verify.router, prefix="/api", tags=["Verify"])
 app.include_router(contents.router, prefix="/api", tags=["Contents"])
+app.include_router(signature.router, prefix="/api", tags=["Signature"])
+app.include_router(admin.router, prefix="/api", tags=["Admin"])
 
 @app.get("/")
 def root():
-    return {"message": "SIGNET Backend is running"}
+    return {"message": "SIGNET Backend is running with gasless transaction support"}
 
 if __name__ == "__main__":
     import uvicorn
