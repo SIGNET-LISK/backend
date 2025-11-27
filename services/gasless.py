@@ -115,10 +115,8 @@ def encode_register_content(p_hash: str, title: str, description: str) -> str:
     """
     try:
         registry = w3.eth.contract(address=w3.to_checksum_address(REGISTRY_ADDRESS), abi=REGISTRY_ABI)
-        encoded = registry.encodeABI(
-            fn_name='registerContent',
-            args=[p_hash, title, description]
-        )
+        # web3.py uses functions.method_name(...)._encode_transaction_data() or build_transaction()
+        encoded = registry.functions.registerContent(p_hash, title, description)._encode_transaction_data()
         return encoded
     except Exception as e:
         raise ValueError(f"Failed to encode registerContent: {str(e)}")
@@ -138,19 +136,9 @@ def encode_add_publisher(publisher_address: str) -> str:
         publisher_address = w3.to_checksum_address(publisher_address)
         registry = w3.eth.contract(address=w3.to_checksum_address(REGISTRY_ADDRESS), abi=REGISTRY_ABI)
         
-        # Use the correct method to encode function data
-        encoded = registry.encodeABI(
-            fn_name='addPublisher',
-            args=[publisher_address]
-        )
+        # web3.py uses functions.method_name(...)._encode_transaction_data()
+        encoded = registry.functions.addPublisher(publisher_address)._encode_transaction_data()
         return encoded
-    except AttributeError:
-        # Fallback: use functions method if encodeABI not available
-        try:
-            encoded = registry.functions.addPublisher(publisher_address)._encode_transaction_data()
-            return encoded
-        except Exception as e:
-            raise ValueError(f"Failed to encode addPublisher: {str(e)}")
     except Exception as e:
         raise ValueError(f"Failed to encode addPublisher: {str(e)}")
 
@@ -254,7 +242,9 @@ def verify_eip712_signature(
             nonce = get_nonce(user_address)
 
         function_data = encode_register_content(p_hash, title, description)
-        gas = estimate_gas(user_address, function_data, REGISTRY_ADDRESS)
+        # Use the same gas value as frontend (300000) for signature verification
+        # Frontend hardcodes gas to 300000, so we must use the same value
+        gas = 300000
 
         forward_request = build_forward_request(
             user_address=user_address,
@@ -274,7 +264,39 @@ def verify_eip712_signature(
         else:
             signature_bytes = signature
 
-        recovered_address = Account.recover_hash(eip712_hash, signature=signature_bytes)
+        # EIP-712 signature recovery using eth_keys
+        from eth_keys import keys
+        
+        # Extract v, r, s from signature
+        if len(signature_bytes) != 65:
+            raise ValueError("Invalid signature length")
+        
+        r = signature_bytes[0:32]
+        s = signature_bytes[32:64]
+        v = signature_bytes[64]
+        
+        # Convert v to recovery id (0 or 1)
+        # EIP-712 signatures use v = 27 or 28, but eth_keys expects recovery_id = 0 or 1
+        if v >= 27:
+            recovery_id = v - 27
+        else:
+            recovery_id = v
+        
+        # Recover public key
+        signature_obj = keys.Signature(vrs=(recovery_id, int.from_bytes(r, 'big'), int.from_bytes(s, 'big')))
+        public_key = signature_obj.recover_public_key_from_msg_hash(eip712_hash)
+        recovered_address = public_key.to_checksum_address()
+
+        # 🔥 Debug prints
+        print("========== DEBUG VERIFY REGISTER CONTENT ==========")
+        print("Domain:", domain)
+        print("ForwardRequest:", forward_request)
+        print("EIP712 Hash:", eip712_hash.hex())
+        print("Signature:", signature)
+        print("Recovered Address:", recovered_address)
+        print("Expected Address:", user_address)
+        print("Match:", recovered_address.lower() == user_address.lower())
+        print("==============================================")
 
         is_valid = recovered_address.lower() == user_address.lower()
         return is_valid, nonce
@@ -300,7 +322,9 @@ def verify_add_publisher_signature(
             nonce = get_nonce(owner_address)
 
         function_data = encode_add_publisher(publisher_address)
-        gas = estimate_gas(owner_address, function_data, REGISTRY_ADDRESS)
+        # Use the same gas value as frontend (300000) for signature verification
+        # Frontend hardcodes gas to 300000, so we must use the same value
+        gas = 300000
 
         forward_request = build_forward_request(
             user_address=owner_address,
@@ -314,25 +338,53 @@ def verify_add_publisher_signature(
         domain = build_eip712_domain(FORWARDER_ADDRESS, CHAIN_ID)
         eip712_hash = get_eip712_hash(domain, forward_request)
 
-        from eth_account.messages import encode_defunct
-        msg = encode_defunct(hexstr=eip712_hash.hex())
-
+        # Convert signature to bytes
         if isinstance(signature, str) and signature.startswith("0x"):
             signature_bytes = bytes.fromhex(signature[2:])
         else:
             signature_bytes = signature
 
-        recovered_address = Account.recover_message(msg, signature=signature_bytes)
+        # EIP-712 signature recovery
+        # Use the same method as verify_eip712_signature
+        # For EIP-712, the hash already includes \x19\x01 prefix, so we can use ecrecover directly
+        from eth_keys import keys
+        from eth_utils import decode_hex
+        
+        # Extract v, r, s from signature
+        if len(signature_bytes) != 65:
+            raise ValueError("Invalid signature length")
+        
+        r = signature_bytes[0:32]
+        s = signature_bytes[32:64]
+        v = signature_bytes[64]
+        
+        # Convert v to recovery id (0 or 1)
+        # EIP-712 signatures use v = 27 or 28, but eth_keys expects recovery_id = 0 or 1
+        if v >= 27:
+            recovery_id = v - 27
+        else:
+            recovery_id = v
+        
+        # Recover public key
+        signature_obj = keys.Signature(vrs=(recovery_id, int.from_bytes(r, 'big'), int.from_bytes(s, 'big')))
+        public_key = signature_obj.recover_public_key_from_msg_hash(eip712_hash)
+        recovered_address = public_key.to_checksum_address()
 
         # 🔥 Debug prints
         print("========== DEBUG VERIFY ADD PUBLISHER ==========")
+        print("Domain:", domain)
+        print("ForwardRequest:", forward_request)
         print("EIP712 Hash:", eip712_hash.hex())
+        print("Signature:", signature)
         print("Recovered Address:", recovered_address)
         print("Expected Address:", owner_address)
-        print("Signature:", signature)
-        print("Nonce:", nonce)
-        print("Function Data:", function_data)
-        print("ForwardRequest:", forward_request)
+        print("Match:", recovered_address.lower() == owner_address.lower())
+        print("==============================================")
+        print("\n⚠️  If recovered address doesn't match:")
+        print("1. Check if you're using the correct wallet (MetaMask, not Rabby)")
+        print("2. Check if VITE_FORWARDER_ADDRESS matches FORWARDER_ADDRESS in backend")
+        print("3. Check if VITE_CHAIN_ID matches CHAIN_ID in backend")
+        print("4. Frontend console should show which address signed the transaction")
         print("==============================================")
 
         is_valid = recovered_address.lower() == owner_address.lower()

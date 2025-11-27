@@ -173,8 +173,9 @@ class SignetContract:
             # Encode function data
             function_data = encode_register_content(p_hash, title, description)
             
-            # Estimate gas
-            gas = estimate_gas(user_address, function_data, REGISTRY_ADDRESS)
+            # Use the same gas as frontend (300000) for ForwardRequest
+            # IMPORTANT: This must match the gas value used when signing
+            gas = 300000
             
             # Build ForwardRequest
             forward_request = build_forward_request(
@@ -263,8 +264,9 @@ class SignetContract:
             # Encode function data
             function_data = encode_add_publisher(publisher_address)
             
-            # Estimate gas
-            gas = estimate_gas(owner_address, function_data, REGISTRY_ADDRESS)
+            # Use the same gas as frontend (300000) for ForwardRequest
+            # IMPORTANT: This must match the gas value used when signing
+            gas = 300000
             
             # Build ForwardRequest
             forward_request = build_forward_request(

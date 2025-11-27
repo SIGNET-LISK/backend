@@ -87,6 +87,7 @@ async def verify_content(
             return {
                 "status": "UNVERIFIED",
                 "pHash": p_hash,
+                "pHash_input": p_hash,  # Add for consistency with VERIFIED response
                 "message": "No matching content found."
             }
             
@@ -101,6 +102,7 @@ async def verify_content(
              return {
                 "status": "UNVERIFIED",
                 "pHash": p_hash,
+                "pHash_input": p_hash,  # Add for consistency
                 "message": "Match found in index but not in DB (inconsistent state)."
             }
             
