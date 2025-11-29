@@ -1,0 +1,30 @@
+# Dockerfile
+# Gunakan image Python dasar yang stabil dan ramping
+FROM python:3.10-slim
+
+# Instal dependency sistem yang dibutuhkan oleh OpenCV (libGL.so.1)
+# Baris ini memperbaiki error yang Anda alami sebelumnya.
+RUN apt-get update && \
+    apt-get install -y libgl1-mesa-glx && \
+    rm -rf /var/lib/apt/lists/*
+
+# Atur direktori kerja di dalam container
+WORKDIR /app
+
+# Salin file requirements.txt dan install dependensi Python
+# Melakukan ini sebelum menyalin kode lain memanfaatkan cache Docker
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Salin seluruh kode aplikasi Anda ke dalam direktori kerja
+COPY . .
+
+# Paparkan port yang akan digunakan oleh aplikasi
+# (Ini hanyalah metadata, tidak benar-benar membuka port)
+# Kami menggunakan 8000 sebagai default, tetapi di Railway akan menggunakan $PORT
+EXPOSE 8000
+
+# Perintah untuk menjalankan aplikasi ketika container dimulai
+# Gunakan Gunicorn/Uvicorn yang di-wrap oleh Gunicorn untuk production yang lebih robust
+# Namun, karena Anda menggunakan uvicorn, kita pakai uvicorn dengan variabel $PORT
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

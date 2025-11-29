@@ -1,0 +1,17 @@
+# .dockerignore
+
+# Folder Python virtual environment
+.venv
+
+# Cache Python
+__pycache__
+
+# File settings lokal
+.vscode
+.idea
+
+# File dan folder yang dihasilkan
+*.pyc
+*.log
+dist/
+build/

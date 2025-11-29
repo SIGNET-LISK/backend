@@ -10,18 +10,31 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # Use DATABASE_URL directly (from Railway or .env)
-    engine = create_engine(DATABASE_URL)
+    # Railway sometimes uses postgres:// instead of postgresql://
+    # SQLAlchemy requires postgresql:// so we normalize it
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    
+    # For production (Railway/cloud), use connection pooling
+    # Railway DATABASE_URL usually includes SSL parameters in the URL itself
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,  # Verify connections before using
+        pool_recycle=300,    # Recycle connections after 5 minutes (for long-running apps)
+    )
 else:
     # Fallback to individual variables (for local development)
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "password")
-    DB_NAME = os.getenv("DB_NAME", "signet_indexer")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "1234")
+    DB_NAME = os.getenv("DB_NAME", "signet")
     
     DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
