@@ -1,5 +1,7 @@
 import os
 import logging
+import asyncio
+import threading
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import register, verify, contents, signature, admin
@@ -11,6 +13,18 @@ load_dotenv()
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+# Start indexer in background thread
+def start_indexer():
+    try:
+        from indexer.listener import listen_events
+        listen_events()
+    except Exception as e:
+        logging.error(f"Indexer error: {e}")
+
+indexer_thread = threading.Thread(target=start_indexer, daemon=True)
+indexer_thread.start()
+logging.info("✅ Indexer started in background")
 
 app = FastAPI(title="SIGNET Backend API")
 
