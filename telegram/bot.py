@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-API_URL = "http://localhost:8000/api"
+API_URL = os.getenv("API_URL_BOT", "http://localhost:8000/api")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
