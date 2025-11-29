@@ -8,6 +8,9 @@ import os
 import tempfile
 import yt_dlp
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 verifier = get_verifier()
@@ -17,6 +20,8 @@ async def verify_content(
     file: UploadFile = File(None),
     link: str = Form(None)
 ):
+    logger.info(f"🔍 Verify request: file={file.filename if file else None}, link={link}")
+    
     if not file and not link:
         raise HTTPException(status_code=400, detail="Either file or link must be provided")
 
@@ -71,23 +76,38 @@ async def verify_content(
              raise HTTPException(status_code=400, detail="Could not retrieve file from input")
 
         # Generate pHash
-        if temp_path.endswith((".mp4", ".mov", ".avi", ".webm", ".mkv")) or "video" in str(file.content_type if file else ""):
-             p_hash = get_video_phash(temp_path)
-        else:
-            with open(temp_path, "rb") as f:
-                p_hash = get_image_phash(f.read())
+        logger.info(f"📊 Generating hash for file: {temp_path}")
+        try:
+            if temp_path.endswith((".mp4", ".mov", ".avi", ".webm", ".mkv")) or "video" in str(file.content_type if file else ""):
+                 logger.info("🎬 Detecting as video")
+                 p_hash = get_video_phash(temp_path)
+            else:
+                logger.info("🖼️  Detecting as image")
+                with open(temp_path, "rb") as f:
+                    p_hash = get_image_phash(f.read())
+            logger.info(f"✅ Hash generated: {p_hash[:16]}...")
+        except Exception as hash_e:
+            logger.error(f"❌ Hash generation failed: {hash_e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Hash generation failed: {str(hash_e)}")
         
         if not p_hash:
              raise HTTPException(status_code=400, detail="Could not generate hash")
 
         # Search in ANN
-        matches = verifier.search(p_hash, k=1)
+        logger.info(f"🔎 Searching in index with hash: {p_hash[:16]}...")
+        try:
+            matches = verifier.search(p_hash, k=1)
+            logger.info(f"📈 Search results: {len(matches)} matches found")
+        except Exception as search_e:
+            logger.error(f"❌ Search failed: {search_e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Search failed: {str(search_e)}")
         
         if not matches:
+            logger.info("⚠️  No matches found")
             return {
                 "status": "UNVERIFIED",
                 "pHash": p_hash,
-                "pHash_input": p_hash,  # Add for consistency with VERIFIED response
+                "pHash_input": p_hash,
                 "message": "No matching content found."
             }
             
@@ -125,8 +145,10 @@ async def verify_content(
         }
 
     except HTTPException as he:
+        logger.warning(f"⚠️  HTTP Exception: {he.detail}")
         raise he
     except Exception as e:
+        logger.error(f"❌ Unexpected error in verify: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(temp_dir):
