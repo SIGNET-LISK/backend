@@ -1,30 +1,38 @@
 # Dockerfile
-# Gunakan image Python dasar yang stabil dan ramping
-FROM python:3.10-slim
 
-# Instal dependency sistem yang dibutuhkan oleh OpenCV (libGL.so.1)
-# Baris ini memperbaiki error yang Anda alami sebelumnya.
+# 1. Base Image
+FROM python:3.12-slim
+
+# 2. Instal System Dependencies KRUSIAL
+# Daftar paket ini harus diinstal agar OpenCV dan FFMPEG berfungsi:
+# - libgl1-mesa-glx: Menyediakan libGL.so.1 (Memperbaiki error utama Anda)
+# - libsm6, libxext6: Dependency GUI/X11 yang dibutuhkan OpenCV saat headless
+# - ffmpeg: Binary executable yang dibutuhkan oleh ffmpeg-python
+# - libatlas-base-dev: Dependency yang dibutuhkan oleh OpenCV/numpy untuk performa
 RUN apt-get update && \
-    apt-get install -y libgl1-mesa-glx && \
+    apt-get install -y \
+        libgl1-mesa-glx \
+        libsm6 \
+        libxext6 \
+        ffmpeg \
+        libatlas-base-dev \
+        --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
-# Atur direktori kerja di dalam container
+# 3. Direktori Kerja
 WORKDIR /app
 
-# Salin file requirements.txt dan install dependensi Python
-# Melakukan ini sebelum menyalin kode lain memanfaatkan cache Docker
+# 4. Instal Python Dependencies
+# Perhatikan: Pastikan requirements.txt Anda sudah mencantumkan semua library di atas
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Salin seluruh kode aplikasi Anda ke dalam direktori kerja
+# 5. Salin Kode Aplikasi
 COPY . .
 
-# Paparkan port yang akan digunakan oleh aplikasi
-# (Ini hanyalah metadata, tidak benar-benar membuka port)
-# Kami menggunakan 8000 sebagai default, tetapi di Railway akan menggunakan $PORT
+# 6. Perintah Run (Menggunakan Port Eksplisit 8000 Sesuai Keinginan Anda)
 EXPOSE 8000
-
-# Perintah untuk menjalankan aplikasi ketika container dimulai
-# Gunakan Gunicorn/Uvicorn yang di-wrap oleh Gunicorn untuk production yang lebih robust
-# Namun, karena Anda menggunakan uvicorn, kita pakai uvicorn dengan variabel $PORT
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Catatan: Penggunaan $PORT tetap disarankan untuk production, 
+# tetapi penggunaan 8000 di sini tidak akan crash jika system dependencies sudah terinstal.
