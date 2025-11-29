@@ -1,7 +1,8 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,12 +16,13 @@ if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     
-    # For production (Railway/cloud), use connection pooling
-    # Railway DATABASE_URL usually includes SSL parameters in the URL itself
+    # For production (Railway/cloud), use connection pooling with SSL
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,  # Verify connections before using
-        pool_recycle=300,    # Recycle connections after 5 minutes (for long-running apps)
+        pool_recycle=300,    # Recycle connections after 5 minutes
+        connect_args={"sslmode": "require"},  # Railway requires SSL
+        echo=False
     )
 else:
     # Fallback to individual variables (for local development)
@@ -33,7 +35,8 @@ else:
     DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True
+        pool_pre_ping=True,
+        echo=False
     )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
