@@ -1,33 +1,35 @@
 # Dockerfile
 
-# 1. Base Image: Gunakan image yang lebih lengkap (tidak 'slim')
-# Ini membantu memastikan semua build tool dan apt tersedia
-FROM python:3.12
+# Base Image: Python 3.13-slim dengan Debian Bullseye
+FROM python:3.13-slim-bullseye
 
-# 2. Instal System Dependencies yang Paling Komprehensif
-# Kami juga menambahkan dependency build essential dan dependensi FFMPEG/OpenCV 
-# yang paling sering hilang, termasuk yang terkait X11/GUI untuk environment headless.
+# Instal System Dependencies yang diperlukan
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
         build-essential \
+        git \
+        libopenblas-dev \
+        liblapack-dev \
         libatlas-base-dev \
-        libsm6 \
-        libxext6 \
-        libgl1-mesa-glx \
-        ffmpeg \
-        --no-install-recommends && \
+        gfortran \
+        ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-# 3. Direktori Kerja
+# Upgrade pip, setuptools, wheel
+RUN pip install --upgrade pip setuptools wheel
+
+# Direktori Kerja
 WORKDIR /app
 
-# 4. Instal Python Dependencies
+# Instal Python Dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Salin Kode Aplikasi
+# Salin Kode Aplikasi
 COPY . .
 
-# 6. Perintah Run (Port 8000)
+# Expose port
 EXPOSE 8000
+
+# Run command
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
