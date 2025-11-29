@@ -1,21 +1,20 @@
 # Dockerfile
 
-# 1. Base Image
-FROM python:3.12-slim
+# 1. Base Image: Gunakan image yang lebih lengkap (tidak 'slim')
+# Ini membantu memastikan semua build tool dan apt tersedia
+FROM python:3.12
 
-# 2. Instal System Dependencies KRUSIAL
-# Daftar paket ini harus diinstal agar OpenCV dan FFMPEG berfungsi:
-# - libgl1-mesa-glx: Menyediakan libGL.so.1 (Memperbaiki error utama Anda)
-# - libsm6, libxext6: Dependency GUI/X11 yang dibutuhkan OpenCV saat headless
-# - ffmpeg: Binary executable yang dibutuhkan oleh ffmpeg-python
-# - libatlas-base-dev: Dependency yang dibutuhkan oleh OpenCV/numpy untuk performa
+# 2. Instal System Dependencies yang Paling Komprehensif
+# Kami juga menambahkan dependency build essential dan dependensi FFMPEG/OpenCV 
+# yang paling sering hilang, termasuk yang terkait X11/GUI untuk environment headless.
 RUN apt-get update && \
     apt-get install -y \
-        libgl1-mesa-glx \
+        build-essential \
+        libatlas-base-dev \
         libsm6 \
         libxext6 \
+        libgl1-mesa-glx \
         ffmpeg \
-        libatlas-base-dev \
         --no-install-recommends && \
     rm -rf /var/lib/apt/lists/*
 
@@ -23,16 +22,12 @@ RUN apt-get update && \
 WORKDIR /app
 
 # 4. Instal Python Dependencies
-# Perhatikan: Pastikan requirements.txt Anda sudah mencantumkan semua library di atas
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 5. Salin Kode Aplikasi
 COPY . .
 
-# 6. Perintah Run (Menggunakan Port Eksplisit 8000 Sesuai Keinginan Anda)
+# 6. Perintah Run (Port 8000)
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
-# Catatan: Penggunaan $PORT tetap disarankan untuk production, 
-# tetapi penggunaan 8000 di sini tidak akan crash jika system dependencies sudah terinstal.
