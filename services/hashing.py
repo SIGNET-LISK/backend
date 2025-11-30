@@ -8,28 +8,54 @@ import numpy as np
 def trim(im):
     """Removes uniform borders (like black bars) from the image."""
     try:
-        bg = Image.new(im.mode, im.size, im.getpixel((0,0)))
-        diff = ImageChops.difference(im, bg)
-        diff = ImageChops.add(diff, diff, 2.0, -100)
-        bbox = diff.getbbox()
-        if bbox:
-            return im.crop(bbox)
-    except Exception:
-        pass # Fallback to original if trim fails
+        # Convert to RGB if needed (handle RGBA, etc)
+        if im.mode != 'RGB':
+            im = im.convert('RGB')
+        
+        # Get image data
+        img_array = np.array(im)
+        
+        # Look for borders with color close to black (threshold to be lenient)
+        gray = np.mean(img_array, axis=2)  # Convert to grayscale
+        
+        # Find rows/cols that are not mostly black (threshold = 30)
+        threshold = 30
+        row_mask = np.any(gray > threshold, axis=1)
+        col_mask = np.any(gray > threshold, axis=0)
+        
+        # Find bounds
+        rows = np.where(row_mask)[0]
+        cols = np.where(col_mask)[0]
+        
+        if len(rows) > 0 and len(cols) > 0:
+            top, bottom = rows[0], rows[-1] + 1
+            left, right = cols[0], cols[-1] + 1
+            return im.crop((left, top, right, bottom))
+    except Exception as e:
+        print(f"Trim warning: {e}")
+        pass
+    
     return im
 
 def get_image_phash(image_data: bytes) -> str:
     """Calculates Perceptual Hash (pHash) for image data."""
     try:
         image = Image.open(io.BytesIO(image_data))
-        # Handle EXIF Orientation
+        
+        # Handle EXIF Orientation FIRST before any processing
         image = ImageOps.exif_transpose(image)
+        
+        # Convert to RGB (handle RGBA, grayscale, etc)
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
         
         # Auto-crop borders (handle screenshots with black bars)
         image = trim(image)
         
         # Resize to standard size for pHash (reduce noise)
-        image = image.resize((128, 128), Image.LANCZOS) 
+        # Use high-quality resampling for consistency
+        image = image.resize((128, 128), Image.Resampling.LANCZOS) 
+        
         # Calculate pHash with 16x16 (256 bit)
         p_hash = imagehash.phash(image, hash_size=16) 
         
@@ -70,9 +96,16 @@ def get_video_phash(filepath: str) -> str:
         if ret and frame is not None:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = Image.fromarray(frame_rgb)
+            
+            # Convert to RGB if needed
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
             # Auto-crop video frames too
             image = trim(image)
-            image = image.resize((128, 128), Image.LANCZOS)
+            
+            # Use high-quality resampling for consistency
+            image = image.resize((128, 128), Image.Resampling.LANCZOS)
             h = imagehash.phash(image, hash_size=16)
             hashes.append(str(h))
         else:
