@@ -35,12 +35,15 @@ async def verify_content(file_name, file_data, mime_type, status_msg):
             result = response.json()
             status_icon = "✅" if result['status'] == "VERIFIED" else "⚠️"
             
-            text = f"{status_icon} **{result['status']}**\n\n"
-            text += f"📜 **Title:** {result.get('title', 'N/A')}\n"
-            text += f"👤 **Publisher:** {result.get('publisher', 'N/A')}\n"
-            text += f"📏 **Distance:** {result.get('hamming_distance', 'N/A')}\n"
-            text += f"🔗 [Explorer Link]({result.get('explorer_link', '#')})\n"
+            text = f"{status_icon} **{result['status']}**\n"
             text += f"\n_{result.get('message', '')}_"
+            
+            # Show full details only if VERIFIED
+            if result['status'] == "VERIFIED":
+                text += f"\n\n📜 **Title:** {result.get('title', 'N/A')}\n"
+                text += f"👤 **Publisher:** {result.get('publisher', 'N/A')}\n"
+                text += f"📏 **Distance:** {result.get('hamming_distance', 'N/A')}\n"
+                text += f"🔗 [Explorer Link]({result.get('explorer_link', '#')})"
             
             await status_msg.edit_text(text, parse_mode="Markdown")
         else:
