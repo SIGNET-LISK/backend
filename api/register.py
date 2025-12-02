@@ -45,11 +45,13 @@ async def register_content(
                     shutil.copyfileobj(file.file, buffer)
                 
                 # Generate pHash from file
-                if file.content_type and file.content_type.startswith("video") or (file.filename and file.filename.endswith((".mp4", ".mov", ".avi"))):
+                if file.content_type and file.content_type.startswith("video") or (file.filename and file.filename.endswith((".mp4", ".mov", ".avi", ".webm", ".mkv"))):
                     computed_hash = get_video_phash(temp_path)
-                else:
+                elif file.content_type and file.content_type.startswith("image") or (file.filename and file.filename.endswith((".jpg", ".png", ".jpeg", ".webp"))):
                     with open(temp_path, "rb") as f:
                         computed_hash = get_image_phash(f.read())
+                else:
+                    raise HTTPException(status_code=400, detail="File type not supported for hashing. Supported: JPG, PNG, MP4, MOV.")
             else:
                 raise HTTPException(
                     status_code=400,
@@ -140,11 +142,13 @@ async def register_content(
             shutil.copyfileobj(file.file, buffer)
             
         # Generate pHash
-        if file.content_type and file.content_type.startswith("video") or (file.filename and file.filename.endswith((".mp4", ".mov", ".avi"))):
+        if file.content_type and file.content_type.startswith("video") or (file.filename and file.filename.endswith((".mp4", ".mov", ".avi", ".webm", ".mkv"))):
             p_hash = get_video_phash(temp_path)
-        else:
+        elif file.content_type and file.content_type.startswith("image") or (file.filename and file.filename.endswith((".jpg", ".png", ".jpeg", ".webp"))):
             with open(temp_path, "rb") as f:
                 p_hash = get_image_phash(f.read())
+        else:
+            raise HTTPException(status_code=400, detail="File type not supported for hashing. Supported: JPG, PNG, MP4, MOV.")
         
         # Check if content already exists before registering
         if contract.content_exists(p_hash):

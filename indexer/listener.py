@@ -30,7 +30,11 @@ def listen_events():
     print(f"🎧 Listening for events on {REGISTRY_ADDRESS}...")
     
     # Simple polling loop
-    last_block = w3.eth.block_number - 5000 # Scan back 5000 blocks to catch missed events
+    try:
+        last_block = w3.eth.block_number - 5000 # Scan back 5000 blocks to catch missed events
+    except Exception as e:
+        print(f"⚠️ Failed to get block number: {e}. Starting from 0.")
+        last_block = 0
     
     while True:
         try:

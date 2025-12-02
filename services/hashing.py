@@ -1,119 +1,68 @@
 import imagehash
-from PIL import Image, ImageOps, ImageChops
+from PIL import Image
 import cv2
 import os
 import io
 import numpy as np
 
-def trim(im):
-    """Removes uniform borders (like black bars) from the image."""
-    try:
-        # Convert to RGB if needed (handle RGBA, etc)
-        if im.mode != 'RGB':
-            im = im.convert('RGB')
-        
-        # Get image data
-        img_array = np.array(im)
-        
-        # Look for borders with color close to black (threshold to be lenient)
-        gray = np.mean(img_array, axis=2)  # Convert to grayscale
-        
-        # Find rows/cols that are not mostly black (threshold = 30)
-        threshold = 30
-        row_mask = np.any(gray > threshold, axis=1)
-        col_mask = np.any(gray > threshold, axis=0)
-        
-        # Find bounds
-        rows = np.where(row_mask)[0]
-        cols = np.where(col_mask)[0]
-        
-        if len(rows) > 0 and len(cols) > 0:
-            top, bottom = rows[0], rows[-1] + 1
-            left, right = cols[0], cols[-1] + 1
-            return im.crop((left, top, right, bottom))
-    except Exception as e:
-        print(f"Trim warning: {e}")
-        pass
-    
-    return im
+# --- 1. CORE LOGIC: HASHING ---
 
 def get_image_phash(image_data: bytes) -> str:
-    """Calculates Perceptual Hash (pHash) for image data."""
-    try:
-        image = Image.open(io.BytesIO(image_data))
-        
-        # Handle EXIF Orientation FIRST before any processing
-        image = ImageOps.exif_transpose(image)
-        
-        # Convert to RGB (handle RGBA, grayscale, etc)
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # Auto-crop borders (handle screenshots with black bars)
-        image = trim(image)
-        
-        # Resize to standard size for pHash (reduce noise)
-        # Use high-quality resampling for consistency
-        image = image.resize((128, 128), Image.Resampling.LANCZOS) 
-        
-        # Calculate pHash with 16x16 (256 bit)
-        p_hash = imagehash.phash(image, hash_size=16) 
-        
-        # Repeat hash 3 times to match video dimension (Start, Mid, End)
-        # This allows image to be compared against video (somewhat)
-        return str(p_hash) * 3
-    except Exception as e:
-        raise ValueError(f"Error hashing image: {e}")
+    """Menghitung Perceptual Hash (pHash) untuk file gambar."""
+    image = Image.open(io.BytesIO(image_data))
+    # Resize ke ukuran standar untuk pHash (mengurangi noise)
+    image = image.resize((128, 128), Image.LANCZOS) 
+    # Hitung pHash dengan 8x8 (64 bit) atau 16x16 (256 bit)
+    p_hash = imagehash.phash(image, hash_size=16) 
+    return str(p_hash)
 
 def get_video_phash(filepath: str) -> str:
     """
-    Calculates pHash from 3 keyframes (20%, 50%, 80%) of a video.
-    Returns concatenated hash string.
+    Menghitung pHash dari FRAME TENGAH video (lebih stabil terhadap padding/trimming).
     """
     if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Video file not found: {filepath}")
+        raise FileNotFoundError(f"File video tidak ditemukan: {filepath}")
 
     cap = cv2.VideoCapture(filepath)
     if not cap.isOpened():
-        raise IOError(f"Failed to open video file: {filepath}")
+        raise IOError(f"Gagal membuka file video: {filepath}")
 
+    # 1. Dapatkan Total Jumlah Frame
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
-    # Define 3 points: 20%, 50%, 80%
-    points = [0.2, 0.5, 0.8]
-    hashes = []
+    # 2. Hitung Index Frame Tengah (mid-frame)
+    if frame_count < 20: # Jika video terlalu pendek
+        frame_to_hash = 0
+    else:
+        frame_to_hash = frame_count // 2 # Bagi dua (tengah)
     
-    for p in points:
-        frame_idx = int(frame_count * p)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-        ret, frame = cap.read()
-        
-        if not ret or frame is None:
-            # Fallback to 0 if fail (or first frame)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret, frame = cap.read()
-            
-        if ret and frame is not None:
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            image = Image.fromarray(frame_rgb)
-            
-            # Convert to RGB if needed
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-            
-            # Auto-crop video frames too
-            image = trim(image)
-            
-            # Use high-quality resampling for consistency
-            image = image.resize((128, 128), Image.Resampling.LANCZOS)
-            h = imagehash.phash(image, hash_size=16)
-            hashes.append(str(h))
-        else:
-            # Should not happen if video is valid, but append empty/zero hash if needed
-            # For robustness, just reuse previous or fail
-            raise ValueError(f"Failed to read frame at {p*100}%")
+    # Set frame position ke frame tengah
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_to_hash)
+    
+    ret, frame = cap.read()
+    cap.release() 
 
-    cap.release()
+    if not ret or frame is None:
+        raise ValueError(f"Gagal membaca frame ke-{frame_to_hash} dari video.")
     
-    # Concatenate all 3 hashes
-    return "".join(hashes)
+    # Konversi dan Hash
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    image = Image.fromarray(frame_rgb)
+    
+    p_hash = imagehash.phash(image, hash_size=16)
+    return str(p_hash)
+
+
+# --- 2. CORE LOGIC: HAMMING DISTANCE ---
+
+def calculate_hamming(hash_a: str, hash_b: str) -> int:
+    """Menghitung Hamming Distance (jumlah perbedaan bit) antara dua string hash."""
+    try:
+        # Konversi string hash heksadesimal ke objek ImageHash
+        hash_obj_a = imagehash.hex_to_hash(hash_a)
+        hash_obj_b = imagehash.hex_to_hash(hash_b)
+        
+        # Perhitungan dilakukan secara otomatis oleh library ImageHash
+        return hash_obj_a - hash_obj_b
+    except ValueError:
+        raise ValueError("Hash harus berupa string heksadesimal yang valid.")

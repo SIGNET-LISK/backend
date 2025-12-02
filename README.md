@@ -32,7 +32,7 @@ Ini adalah sistem backend lengkap untuk SIGNET, mencakup server FastAPI, Indexer
 3.  **Setup Database**:
     Buat database dan tabel:
     ```bash
-    # Pastikan PostgreSQL berjalan dan database 'signet_indexer' sudah dibuat
+    # Pastikan PostgreSQL berjalan dan database 'signet' sudah dibuat
     psql -U postgres -d signet_indexer -f database/schema.sql
     ```
     *Catatan: Aplikasi juga akan mencoba membuat tabel secara otomatis saat dijalankan menggunakan SQLAlchemy.*

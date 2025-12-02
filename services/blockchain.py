@@ -24,7 +24,8 @@ class SignetContract:
     def __init__(self):
         self.w3 = Web3(Web3.HTTPProvider(RPC_URL))
         if not self.w3.is_connected():
-            raise ConnectionError(f"Failed to connect to RPC: {RPC_URL}")
+            print(f"⚠️ Warning: Failed to connect to RPC: {RPC_URL}. Blockchain features may be unavailable.")
+            # raise ConnectionError(f"Failed to connect to RPC: {RPC_URL}")
         
         self.contract_address = self.w3.to_checksum_address(REGISTRY_ADDRESS)
         
